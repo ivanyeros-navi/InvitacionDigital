@@ -142,14 +142,6 @@
                 </linearGradient>
             </defs>
         </svg>
-
-        <svg class="sparkle-star bottom-48 left-6 w-16 h-16" style="animation-delay: -2s;" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M50 0 C50 35, 65 50, 100 50 C65 50, 50 65, 50 100 C50 65, 35 50, 0 50 C35 50, 50 35, 50 0 Z" fill="url(#starGrad)"/>
-        </svg>
-
-        <svg class="sparkle-star top-1/2 right-4 w-10 h-10" style="animation-delay: -3.5s;" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M50 0 C50 35, 65 50, 100 50 C65 50, 50 65, 50 100 C50 65, 35 50, 0 50 C35 50, 50 35, 50 0 Z" fill="url(#starGrad)"/>
-        </svg>
     </div>
 
     <header class="relative z-10 pt-10 pb-12 px-4 text-center">
@@ -168,7 +160,6 @@
 
     <main class="max-w-xl mx-auto px-4 relative z-20 space-y-6">
 
-        <!-- Countdown Timer -->
         <div class="chrome-card rounded-3xl p-5 text-center">
             <h3 class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-3">Faltan</h3>
             <div class="grid grid-cols-4 gap-2 text-center" id="countdown">
@@ -194,7 +185,7 @@
         <!-- 1. Imagen Personalizada Fija -->
         <div class="chrome-card rounded-3xl p-4 sm:p-5 text-center">
             <div class="relative rounded-2xl overflow-hidden border border-white/20 bg-slate-950 aspect-[2/3] flex items-center justify-center shadow-2xl">
-                <!-- AQUI ES DONDE SE BUSCARÁ TU IMAGEN -->
+                <!-- Imagen Local Fija -->
                 <img id="invitation-img" 
                      src="./invitacion.jpg" 
                      alt="Invitación 2000s Party" 
@@ -258,7 +249,7 @@
             </div>
 
             <p class="text-xs text-slate-300 font-light leading-relaxed">
-                ¡Agrega tus canciones favoritas a la lista!
+                ¡Agrega tus canciones favoritas a la lista! Se guardarán automáticamente.
             </p>
 
             <a href="https://open.spotify.com" target="_blank" rel="noopener noreferrer" 
@@ -267,7 +258,7 @@
                 <span>Abrir Playlist en Spotify</span>
             </a>
 
-            <form id="song-form" onsubmit="addSong(event)" class="space-y-3 pt-2">
+            <form id="song-form" class="space-y-3 pt-2">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         <input type="text" id="song-title" required placeholder="Nombre de la canción" 
@@ -278,14 +269,21 @@
                                class="w-full bg-black/50 border border-white/20 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-white">
                     </div>
                 </div>
-                <button type="submit" class="w-full bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-4 rounded-xl border border-white/20 transition text-xs uppercase tracking-wider flex items-center justify-center gap-2">
+                <button type="submit" id="submit-song-btn" class="w-full bg-white/10 hover:bg-white/20 text-white font-semibold py-2.5 px-4 rounded-xl border border-white/20 transition text-xs uppercase tracking-wider flex items-center justify-center gap-2">
                     <i class="fa-solid fa-plus text-spotify"></i> Sugerir Canción
                 </button>
             </form>
 
             <div class="space-y-2 pt-2">
-                <span class="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">Canciones Agregadas:</span>
-                <div id="playlist-container" class="space-y-2 max-h-48 overflow-y-auto pr-1"></div>
+                <div class="flex justify-between items-center">
+                    <span class="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">Canciones Agregadas:</span>
+                    <span id="loading-indicator" class="text-[10px] text-spotify flex items-center gap-1 hidden">
+                        <i class="fa-solid fa-circle-notch fa-spin"></i> Sincronizando...
+                    </span>
+                </div>
+                <div id="playlist-container" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    <!-- Las canciones se cargarán aquí dinámicamente -->
+                </div>
             </div>
         </div>
 
@@ -296,6 +294,7 @@
     </main>
 
     <script>
+        // Funciones visuales e iniciales
         window.addEventListener('load', () => {
             confetti({ particleCount: 50, spread: 70, colors: ['#ffffff', '#cbd5e1'], origin: { y: 0.6 } });
             startCountdown();
@@ -304,6 +303,7 @@
         function startCountdown() {
             const now = new Date();
             let targetYear = now.getFullYear();
+            // Mes 9 en JS es Octubre (inicia en 0)
             let targetDate = new Date(targetYear, 9, 3, 18, 0, 0);
 
             if (now > targetDate) {
@@ -328,33 +328,152 @@
             setInterval(update, 1000);
         }
 
-        function addSong(event) {
-            event.preventDefault();
-            const songTitle = document.getElementById('song-title').value.trim();
-            const songArtist = document.getElementById('song-artist').value.trim();
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, tag => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'}[tag] || tag));
+        }
+    </script>
 
-            if (songTitle && songArtist) {
-                const playlistContainer = document.getElementById('playlist-container');
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Obtener variables de entorno (simuladas de manera segura si es entorno local)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'invitacion-cumpleanos-db';
+        const rawConfig = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
+        
+        // Configuracion por defecto para evitar errores al cargar en un servidor normal
+        let firebaseConfig = {
+            projectId: "demo-project", 
+            apiKey: "demo-key"
+        };
+        try {
+            if (rawConfig !== '{}') firebaseConfig = JSON.parse(rawConfig);
+        } catch(e) { console.warn("Usando configuración local de prueba"); }
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        let currentUser = null;
+        const collectionPath = `artifacts/${appId}/public/data/playlist`;
+        const loadingIndicator = document.getElementById('loading-indicator');
+
+        // Autenticación segura requerida antes de hacer queries a Firestore
+        async function initAuth() {
+            try {
+                loadingIndicator.classList.remove('hidden');
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Error de autenticación Firebase:", error);
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                loadRealtimePlaylist();
+            } else {
+                currentUser = null;
+            }
+        });
+
+        function loadRealtimePlaylist() {
+            if (!currentUser) return;
+            
+            const playlistRef = collection(db, collectionPath);
+            
+            // Escuchar cambios en tiempo real
+            onSnapshot(playlistRef, (snapshot) => {
+                const songs = [];
+                snapshot.forEach(doc => {
+                    songs.push({ id: doc.id, ...doc.data() });
+                });
+                
+                // Ordenar localmente por las más recientes primero
+                songs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+                renderPlaylist(songs);
+                loadingIndicator.classList.add('hidden');
+            }, (error) => {
+                console.error("Error al sincronizar canciones:", error);
+                loadingIndicator.classList.add('hidden');
+            });
+        }
+
+        function renderPlaylist(songs) {
+            const container = document.getElementById('playlist-container');
+            container.innerHTML = ''; // Limpiar lista
+            
+            if (songs.length === 0) {
+                container.innerHTML = '<p class="text-xs text-slate-500 italic py-2">Sé el primero en sugerir una canción.</p>';
+                return;
+            }
+
+            songs.forEach(song => {
                 const songCard = document.createElement('div');
-                songCard.className = 'bg-white/5 border border-white/10 rounded-xl p-3 flex items-center justify-between';
+                songCard.className = 'bg-white/5 border border-white/10 rounded-xl p-3 flex items-center justify-between animate-fade-in';
                 songCard.innerHTML = `
                     <div class="flex items-center gap-3">
                         <i class="fa-solid fa-compact-disc text-spotify text-base animate-spin" style="animation-duration: 6s;"></i>
                         <div>
-                            <p class="text-xs font-semibold text-white">${escapeHTML(songTitle)}</p>
-                            <p class="text-[10px] text-slate-400">${escapeHTML(songArtist)}</p>
+                            <p class="text-xs font-semibold text-white">${escapeHTML(song.title)}</p>
+                            <p class="text-[10px] text-slate-400">${escapeHTML(song.artist)}</p>
                         </div>
                     </div>
                     <span class="text-[9px] border border-spotify/40 text-spotify px-2 py-0.5 rounded-full font-mono">AGREGADA</span>
                 `;
-                playlistContainer.prepend(songCard);
-                document.getElementById('song-form').reset();
-            }
+                container.appendChild(songCard);
+            });
         }
 
-        function escapeHTML(str) {
-            return str.replace(/[&<>'"]/g, tag => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'}[tag] || tag));
-        }
+        document.getElementById('song-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (!currentUser) {
+                console.warn("Usuario no autenticado, conectando...");
+                return;
+            }
+
+            const titleInput = document.getElementById('song-title');
+            const artistInput = document.getElementById('song-artist');
+            const submitBtn = document.getElementById('submit-song-btn');
+
+            const title = titleInput.value.trim();
+            const artist = artistInput.value.trim();
+
+            if (title && artist) {
+                // Estado de carga del botón
+                submitBtn.disabled = true;
+                const originalBtnText = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...';
+
+                try {
+                    // Guardar documento en Firestore
+                    await addDoc(collection(db, collectionPath), {
+                        title: title,
+                        artist: artist,
+                        timestamp: Date.now(),
+                        addedBy: currentUser.uid
+                    });
+                    
+                    // Limpiar formulario tras éxito
+                    document.getElementById('song-form').reset();
+                } catch (error) {
+                    console.error("Error al agregar la canción:", error);
+                    // Restaurar botón si hay error
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnText;
+                }
+            }
+        });
+
+        // Iniciar el proceso de base de datos
+        initAuth();
     </script>
 </body>
 </html>
