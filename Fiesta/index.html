@@ -455,11 +455,7 @@ const analytics = getAnalytics(app);
 
         document.getElementById('song-form').addEventListener('submit', async (event) => {
             event.preventDefault();
-            if (!currentUser) {
-                console.warn("Usuario no autenticado, conectando...");
-                return;
-            }
-
+          
             const titleInput = document.getElementById('song-title');
             const artistInput = document.getElementById('song-artist');
             const submitBtn = document.getElementById('submit-song-btn');
